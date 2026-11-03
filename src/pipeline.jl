@@ -611,6 +611,9 @@ function run_batches!(cfg::Config, sources, files, stats::TrimStats, written::Ve
         while !isempty(pending)
             write_result!(files, stats, written, fetch(popfirst!(pending)))
         end
+        # Iterating a closed, empty channel ends the loop without the error of
+        # its task on Julia 1.10, so the producer is checked explicitly.
+        wait(producer[])
     catch e
         # report the error of the failed task itself (e.g. a malformed input)
         while e isa TaskFailedException

@@ -41,6 +41,37 @@ fastq(names...) = join(["@$n\nACGTACGT\n+\nIIIIIIII\n" for n in names])
         end
     end
 
+    # An error of the reading task is reported also when it comes before the
+    # first batch or after the last one (on Julia 1.10, iterating the closed
+    # channel used to end the loop silently and publish the outputs).
+    mktempdir() do dir
+        r1, r2 = joinpath(dir, "r1.fq"), joinpath(dir, "r2.fq")
+        write(r1, fastq("A/1"))
+        write(r2, fastq("B/2"))
+        bad = joinpath(dir, "bad.fq")
+        write(bad, fastq(string.("r", 1:50)...) * "@x\nACGT\n+\nII\n")
+        sub = mkpath(joinpath(dir, "out"))
+        outs = (joinpath(sub, "o1.fq"), joinpath(sub, "o2.fq"))
+        failures = 0
+        for _ in 1:20, threads in (2, 3, 4)
+            failures += try
+                remove_primers((r1, r2), outs; adapters = a, threads)
+                0
+            catch e
+                e isa ArgumentError ? 1 : 0
+            end
+            failures += try
+                remove_primers(bad, outs[1]; adapters = a, threads, batch_size = 7)
+                0
+            catch
+                1
+            end
+            isempty(readdir(sub)) || break
+        end
+        @test failures == 120
+        @test isempty(readdir(sub))
+    end
+
     # PD2: outputs that are the same file under another name are refused
     mktempdir() do dir
         input = joinpath(DATA, "reads.1.fastq")
