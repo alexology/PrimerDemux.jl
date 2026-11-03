@@ -177,7 +177,10 @@ left to the reading tasks. Output size 0.98 GB against cutadapt's 1.02 GB.
 - Gzip outputs consist of one gzip member per batch (like parallel gzip
   tools); the decompressed content is the same.
 
-## License
+## Citation and license
 
-Not yet chosen. Parts are translated from cutadapt (MIT license); see
-[NOTICE](NOTICE).
+Please cite cutadapt: Martin M. (2011) Cutadapt removes adapter sequences from
+high-throughput sequencing reads. *EMBnet.journal* 17(1): 10–12.
+doi:10.14806/ej.17.1.200. PrimerDemux.jl is released under the MIT license
+([LICENSE](LICENSE)). cutadapt is also MIT-licensed; its copyright notice is
+in [NOTICE](NOTICE).

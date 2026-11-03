@@ -2,6 +2,7 @@ name = "PrimerDemux"
 uuid = "f330c181-ac1e-4c4f-bf65-333d836c9044"
 version = "0.1.0"
 authors = ["Alex Laini"]
+license = "MIT"
 
 [deps]
 CodecZlibNG = "642d12eb-acb5-4437-bcfc-a25e07ad685c"

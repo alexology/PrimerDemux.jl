@@ -1,4 +1,4 @@
-PrimerDemux.jl translates to Julia parts of cutadapt 5.2
+PrimerDemux.jl (MIT License, see LICENSE) translates to Julia parts of cutadapt 5.2
 (https://github.com/marcelm/cutadapt): the alignment algorithm
 (src/cutadapt/_align.pyx, in src/align.jl), the k-mer pre-filter
 (src/cutadapt/kmer_heuristic.py and _kmer_finder.pyx, in src/kmers.jl), the
