@@ -1,0 +1,3 @@
+# Test inputs and cutadapt reference outputs must keep their exact bytes.
+test/data/** -text
+test/reference/** -text

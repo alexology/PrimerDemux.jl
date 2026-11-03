@@ -1,0 +1,26 @@
+name = "PrimerDemux"
+uuid = "f330c181-ac1e-4c4f-bf65-333d836c9044"
+version = "0.1.0"
+authors = ["Alex Laini"]
+
+[deps]
+CodecZlibNG = "642d12eb-acb5-4437-bcfc-a25e07ad685c"
+FASTX = "c2308a5c-f048-11e8-3e8a-31650f418d12"
+StringViews = "354b36f9-a18e-4713-926e-db85100087ba"
+TranscodingStreams = "3bb67fe8-82b1-5028-8e26-92a6c54297fa"
+libdeflate_jll = "46979653-d7f6-5232-b59e-dd310c4598de"
+
+[compat]
+CodecZlibNG = "0.2"
+FASTX = "2"
+StringViews = "1"
+Test = "1"
+TranscodingStreams = "0.10, 0.11"
+julia = "1.10"
+libdeflate_jll = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
