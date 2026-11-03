@@ -427,15 +427,7 @@ function run_pipeline(input, output; demux::Bool, adapters = Adapter[], adapters
         isdir(p) && throw(ArgumentError("output $(repr(p)) is a directory"))
         !overwrite && ispath(p) && throw(ArgumentError("output $(repr(p)) exists; pass overwrite=true to replace it"))
     end
-    seen = Dict{Any,String}()
-    for p in all_paths, k in path_keys(p)
-        haskey(seen, k) && throw(ArgumentError(
-            "outputs $(repr(seen[k])) and $(repr(p)) would be the same file; use distinct names"))
-        seen[k] = p
-    end
-    for p in inputs, k in path_keys(p)
-        haskey(seen, k) && throw(ArgumentError("output $(repr(seen[k])) is also the input $(repr(p))"))
-    end
+    check_paths(all_paths, inputs)
 
     sources = InputSource[]
     try
@@ -473,11 +465,14 @@ function run_pipeline(input, output; demux::Bool, adapters = Adapter[], adapters
                     push!(fs, OutputFile(p, has_qual, Int(compression_level)))
                 end
             end
+            # again, now that the output directories exist (links among the
+            # directories that were missing)
+            check_paths(all_paths, inputs)
             stats = TrimStats(paired, adapters1, adapters2)
             written = zeros(Int, length(dests))
             run_batches!(cfg, sources, files, stats, written, Int(threads), Int(batch_size))
             stats.written = [dests[i][1] => written[i] for i in eachindex(dests)]
-            publish_all(reduce(vcat, files; init = OutputFile[]))
+            publish_all(reduce(vcat, files; init = OutputFile[]); overwrite)
             return stats
         catch
             foreach(fs -> foreach(discard, fs), files)

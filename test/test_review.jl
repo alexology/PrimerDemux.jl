@@ -107,7 +107,7 @@ fastq(names...) = join(["@$n\nACGTACGT\n+\nIIIIIIII\n" for n in names])
         foreach(out -> write(out.io, "new"), outs)
         temp3 = outs[3].temp
         outs[3].temp = joinpath(dir, "missing")         # its rename fails
-        @test_throws Base.IOError PrimerDemux.publish_all(outs)
+        @test_throws Base.IOError PrimerDemux.publish_all(outs; overwrite = true)
         @test read(paths[1], String) == "old a"
         @test read(paths[2], String) == "old b"
         @test !ispath(paths[3])
@@ -116,9 +116,67 @@ fastq(names...) = join(["@$n\nACGTACGT\n+\nIIIIIIII\n" for n in names])
         # the same outputs put in place
         outs = [PrimerDemux.OutputFile(p, true, 1) for p in paths]
         foreach(out -> write(out.io, "new"), outs)
-        PrimerDemux.publish_all(outs)
+        PrimerDemux.publish_all(outs; overwrite = true)
         @test all(p -> read(p, String) == "new", paths)
         @test sort(readdir(dir)) == ["a.fastq", "b.fastq", "c.fastq"]
+    end
+
+    # PD7: aliases through a link to a directory, below directories still to
+    # be created, are the same output
+    mktempdir() do dir
+        input = joinpath(DATA, "reads.1.fastq")
+        real = mkpath(joinpath(dir, "real"))
+        alias = joinpath(dir, "alias")
+        linked = try
+            symlink(real, alias; dir_target = true)
+            true
+        catch
+            false
+        end
+        if linked
+            outs = (joinpath(real, "new", "out.fq"), joinpath(alias, "new", "out.fq"))
+            for threads in (1, 4)
+                @test_throws ArgumentError remove_primers((input, input), outs; adapters = a, threads)
+                @test !ispath(joinpath(real, "new")) || isempty(readdir(joinpath(real, "new")))
+            end
+        end
+    end
+
+    # PD8: without overwrite, an output that appears during the run is kept
+    # and is an error; nothing is put in place
+    mktempdir() do dir
+        paths = [joinpath(dir, "a.fastq"), joinpath(dir, "b.fastq")]
+        outs = [PrimerDemux.OutputFile(p, true, 1) for p in paths]
+        foreach(out -> write(out.io, "new"), outs)
+        write(paths[2], "concurrent")
+        @test_throws ArgumentError PrimerDemux.publish_all(outs)
+        @test read(paths[2], String) == "concurrent"
+        @test !ispath(paths[1])
+        foreach(PrimerDemux.discard, outs)
+        @test readdir(dir) == ["b.fastq"]
+        # the file appearing between the check and the placement (hard link)
+        temp = PrimerDemux.new_temp(dir)
+        write(temp, "new")
+        @test_throws ArgumentError PrimerDemux.place_new(temp, paths[2])
+        @test read(paths[2], String) == "concurrent"
+        @test PrimerDemux.place_new(temp, paths[1]) isa Bool
+        @test read(paths[1], String) == "new"
+    end
+
+    # PD9: the cleanup after a failed publication attempts every step
+    mktempdir() do dir
+        stuck = mkpath(joinpath(dir, "stuck"))         # a new output that cannot be removed
+        write(joinpath(stuck, "x"), "")
+        new = joinpath(dir, "new.fastq")
+        write(new, "new")
+        orig = joinpath(dir, "orig.fastq")
+        backup = joinpath(dir, "backup")
+        write(backup, "old")
+        @test_logs (:error, r"Could not remove the new output") PrimerDemux.undo_publish(
+            [stuck, new], [orig => backup])
+        @test !ispath(new)
+        @test read(orig, String) == "old"
+        @test !ispath(backup)
     end
 
     # PD4: a failure opening a later output discards the earlier ones

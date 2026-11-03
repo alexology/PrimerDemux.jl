@@ -98,8 +98,10 @@ ends in `.gz`, FASTA when it ends in `.fasta`, `.fa`, `.fna` or `.fas`.
 Outputs are written to temporary files in the same directory and renamed into
 place at the end; an error leaves no partial output, and replaced files are
 restored if putting the outputs in place fails (a crash during those final
-renames is not covered). Existing files are kept unless `overwrite = true`.
-Outputs that would be the same file (also through links, or names differing
+renames is not covered; if the file system prevents a restore, the previous
+content is kept in a temporary file whose name is logged). Existing files are
+kept unless `overwrite = true`, also when they appear while the run is in
+progress. Outputs that would be the same file (also through links, or names differing
 only in case on Windows and macOS) or an input are refused. As in cutadapt,
 paired inputs must have matching read IDs, up to a final 1, 2 or 3.
 

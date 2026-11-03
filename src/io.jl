@@ -216,17 +216,42 @@ mutable struct OutputFile
 end
 
 # Keys identifying the file at `path`, to refuse outputs that would overwrite
-# each other or an input. The name, with the real path of an existing parent,
-# is compared ignoring case on Windows and macOS, whose usual file systems are
-# case-insensitive (on a case-sensitive one a false match only gives an error);
-# existing files are also identified by device and inode (links, short names).
+# each other or an input. The name, with the real path of its nearest existing
+# ancestor directory and the missing components appended, is compared ignoring
+# case on Windows and macOS, whose usual file systems are case-insensitive (on
+# a case-sensitive one a false match only gives an error); existing files are
+# also identified by device and inode (links, short names).
 function path_keys(path::AbstractString)
     full = normpath(abspath(path))
-    parent, name = dirname(full), basename(full)
-    isdir(parent) && (full = joinpath(realpath(parent), name))
+    missing_parts = String[]
+    dir = full
+    while true
+        parent = dirname(dir)
+        pushfirst!(missing_parts, basename(dir))
+        if isdir(parent)
+            full = joinpath(realpath(parent), missing_parts...)
+            break
+        end
+        parent == dir && break                  # no existing ancestor
+        dir = parent
+    end
     key = Sys.iswindows() || Sys.isapple() ? lowercase(full) : full
     st = stat(path)
     return ispath(st) ? Any[key, (st.device, st.inode)] : Any[key]
+end
+
+# Refuses outputs that are the same file as another output or an input.
+function check_paths(outputs, inputs)
+    seen = Dict{Any,String}()
+    for p in outputs, k in path_keys(p)
+        haskey(seen, k) && throw(ArgumentError(
+            "outputs $(repr(seen[k])) and $(repr(p)) would be the same file; use distinct names"))
+        seen[k] = p
+    end
+    for p in inputs, k in path_keys(p)
+        haskey(seen, k) && throw(ArgumentError("output $(repr(seen[k])) is also the input $(repr(p))"))
+    end
+    return nothing
 end
 
 function new_temp(dir::AbstractString)
@@ -312,11 +337,35 @@ function rename_file(src::AbstractString, dest::AbstractString)
     return nothing
 end
 
-# Puts all outputs in place, or none of them: existing destinations are first
-# moved aside, then the temporary files renamed; if a rename fails, the new
-# files are removed and the old ones restored. A crash in between is not
-# covered (several renames cannot be one atomic step).
-function publish_all(outs::Vector{OutputFile})
+# Puts `temp` at `dest` only if `dest` does not exist. A hard link fails
+# atomically if `dest` exists; where links are not supported, a check before
+# the rename leaves a short window for a file appearing at `dest`. Returns
+# whether `temp` is still to be removed.
+function place_new(temp::AbstractString, dest::AbstractString)
+    try
+        hardlink(temp, dest)
+        return true
+    catch e
+        e isa Base.IOError || rethrow()
+        e.code == Base.UV_EEXIST && appeared(dest)
+    end
+    ispath(dest) && appeared(dest)
+    rename_file(temp, dest)
+    return false
+end
+
+appeared(dest) = throw(ArgumentError(
+    "output $(repr(dest)) was created during the run; pass overwrite=true to replace it"))
+
+# Puts all outputs in place, or none of them. With `overwrite`, existing
+# destinations are first moved aside, then the temporary files renamed;
+# without it, an output that appeared during the run is an error and is left
+# alone. If a step fails, the new files are removed and the old ones restored
+# as far as the file system allows: each step of this cleanup is attempted,
+# its failures are logged (with the backups kept) and the first error is
+# rethrown. A crash in between is not covered (several renames cannot be one
+# atomic step).
+function publish_all(outs::Vector{OutputFile}; overwrite::Bool = false)
     for out in outs
         # an empty gzip file still needs one (empty) member
         out.gzip && out.blocks == 0 && write(out.io, gzip_member(UInt8[], out.level))
@@ -324,38 +373,62 @@ function publish_all(outs::Vector{OutputFile})
     end
     backups = Pair{String,String}[]             # destination => backup
     placed = String[]
+    linked = String[]                           # temporaries still to remove
     try
-        for out in outs
-            ispath(out.path) || continue
-            backup = new_temp(dirname(abspath(out.path)))
-            try
-                rename_file(out.path, backup)
-            catch
-                rm(backup; force = true)
-                rethrow()
+        if overwrite
+            for out in outs
+                ispath(out.path) || continue
+                backup = new_temp(dirname(abspath(out.path)))
+                try
+                    rename_file(out.path, backup)
+                catch
+                    rm(backup; force = true)
+                    rethrow()
+                end
+                push!(backups, out.path => backup)
             end
-            push!(backups, out.path => backup)
-        end
-        for out in outs
-            rename_file(out.temp, out.path)
-            push!(placed, out.path)
+            for out in outs
+                rename_file(out.temp, out.path)
+                push!(placed, out.path)
+            end
+        else
+            for out in outs
+                ispath(out.path) && appeared(out.path)   # an error before any change
+            end
+            for out in outs
+                place_new(out.temp, out.path) && push!(linked, out.temp)
+                push!(placed, out.path)
+            end
         end
     catch
-        foreach(p -> rm(p; force = true), placed)
-        for (path, backup) in backups
-            try
-                rename_file(backup, path)
-            catch e
-                @error "Could not restore $(repr(path)); its previous content is in $(repr(backup))" exception = e
-            end
-        end
+        undo_publish(placed, backups)
         rethrow()
     end
-    for (_, backup) in backups
+    for file in vcat(last.(backups), linked)
         try
-            rm(backup; force = true)
+            rm(file; force = true)
         catch e
-            @warn "Could not remove the previous content of an output, kept in $(repr(backup))" exception = e
+            @warn "Could not remove the temporary file $(repr(file))" exception = e
+        end
+    end
+    return nothing
+end
+
+# Removes the new outputs and restores the moved originals; each step is
+# attempted even if earlier ones fail, and failures are only logged.
+function undo_publish(placed::Vector{String}, backups::Vector{Pair{String,String}})
+    for path in placed
+        try
+            rm(path; force = true)
+        catch e
+            @error "Could not remove the new output $(repr(path))" exception = e
+        end
+    end
+    for (path, backup) in backups
+        try
+            rename_file(backup, path)
+        catch e
+            @error "Could not restore $(repr(path)); its previous content is in $(repr(backup))" exception = e
         end
     end
     return nothing
