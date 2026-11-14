@@ -1,5 +1,8 @@
 # PrimerDemux.jl
 
+[![CI](https://github.com/alexology/PrimerDemux.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/alexology/PrimerDemux.jl/actions/workflows/CI.yml)
+[![Docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://alexology.github.io/PrimerDemux.jl/dev/)
+
 Primer and adapter removal and demultiplexing of FASTQ/FASTA reads in native
 Julia, in the style of [cutadapt](https://github.com/marcelm/cutadapt) by
 Marcel Martin. The alignment algorithm, its k-mer pre-filter, the rules that

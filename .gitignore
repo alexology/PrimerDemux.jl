@@ -1,3 +1,6 @@
 Manifest.toml
 *.cov
 *.mem
+*.log
+
+/docs/build/

@@ -123,9 +123,10 @@ end
 
 # At the end of the parsed data: reports a decompression error, if any.
 function check_input(src::InputSource)
-    src.inflater === nothing && return nothing
+    inflater = src.inflater
+    inflater === nothing && return nothing
     try
-        wait(src.inflater)
+        wait(inflater)
     catch e
         e isa TaskFailedException ? throw(e.task.exception) : rethrow()
     end
@@ -133,10 +134,11 @@ function check_input(src::InputSource)
 end
 
 function close_input(src::InputSource)
-    if src.pipe !== nothing
-        close(src.pipe)                         # stops the inflater
+    pipe, inflater = src.pipe, src.inflater
+    if pipe !== nothing
+        close(pipe)                             # stops the inflater
         try
-            wait(src.inflater)
+            inflater === nothing || wait(inflater)
         catch
         end
     else

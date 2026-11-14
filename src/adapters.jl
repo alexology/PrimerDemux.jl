@@ -17,8 +17,22 @@ Where a single adapter is searched (cutadapt option and syntax in brackets):
 """
 @enum Placement FRONT BACK PREFIX SUFFIX FRONT_NOT_INTERNAL BACK_NOT_INTERNAL
 
+@doc "5' adapter anywhere in the read, also partial at the 5' end (cutadapt `-g ADAPTER`). See [`Placement`](@ref)." FRONT
+@doc "3' adapter anywhere in the read, also partial at the 3' end (cutadapt `-a ADAPTER`). See [`Placement`](@ref)." BACK
+@doc "Anchored 5' adapter: complete, at the very start of the read (cutadapt `-g ^ADAPTER`). See [`Placement`](@ref)." PREFIX
+@doc "Anchored 3' adapter: complete, at the very end of the read (cutadapt `-a ADAPTER\$`). See [`Placement`](@ref)." SUFFIX
+@doc "5' adapter that may be partial but must start the read (cutadapt `-g XADAPTER`). See [`Placement`](@ref)." FRONT_NOT_INTERNAL
+@doc "3' adapter that may be partial but must end the read (cutadapt `-a ADAPTERX`). See [`Placement`](@ref)." BACK_NOT_INTERNAL
+
 removes_before(p::Placement) = p in (FRONT, PREFIX, FRONT_NOT_INTERNAL)
 
+"""
+    Adapter
+
+Abstract type of what is searched in the reads: a [`SingleAdapter`](@ref) or a
+[`LinkedAdapter`](@ref). Build adapters with [`front_adapter`](@ref),
+[`back_adapter`](@ref) or [`adapters_from_fasta`](@ref).
+"""
 abstract type Adapter end
 
 """
