@@ -198,4 +198,31 @@ fastq(names...) = join(["@$n\nACGTACGT\n+\nIIIIIIII\n" for n in names])
     @test quality_trim_index(UInt8[73, 73], 0, 20; base = 33) == (0, 2)
     @test quality_trim_index(UInt8[73, 73], 0, 20, 33) == (0, 2)
     @test quality_trim_index(UInt8[73, 73], 0, 20; base = 64) == (0, 0)
+
+    # R2 quality trimming defaults to the R1 cutoff, as cutadapt -Q;
+    # quality_cutoff2 = 0 disables it
+    mktempdir() do dir
+        r1, r2 = joinpath(dir, "r1.fq"), joinpath(dir, "r2.fq")
+        rec(n) = "@$n\nACGTACGT\n+\nIIII!!!!\n"
+        write(r1, rec("A/1")); write(r2, rec("A/2"))
+        outs = (joinpath(dir, "o1.fq"), joinpath(dir, "o2.fq"))
+        seqlen(p) = length(split(read(p, String), '\n')[2])
+        none = front_adapter("GGGGGGGG")
+        remove_primers((r1, r2), outs; adapters = none, quality_cutoff = 20, overwrite = true)
+        @test seqlen.(outs) == (4, 4)
+        remove_primers((r1, r2), outs; adapters = none, quality_cutoff = 20, quality_cutoff2 = 0,
+                       overwrite = true)
+        @test seqlen.(outs) == (4, 8)
+    end
+
+    # adapters_from_fasta reads gzip-compressed FASTA
+    mktempdir() do dir
+        plain = joinpath(dir, "bc.fa")
+        write(plain, ">bc1\nACGTAC\n>bc2\nTTGCAA\n")
+        gz = joinpath(dir, "bc.fa.gz")
+        open(io -> write(io, read(plain)), GzipCompressorStream, gz, "w")
+        fa, fgz = adapters_from_fasta(plain), adapters_from_fasta(gz)
+        @test [x.name for x in fgz] == [x.name for x in fa] == ["bc1", "bc2"]
+        @test [x.sequence for x in fgz] == [x.sequence for x in fa]
+    end
 end

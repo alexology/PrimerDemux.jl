@@ -114,7 +114,7 @@ paired inputs must have matching read IDs, up to a final 1, 2 or 3.
 | `rc_suffix` | `" rc"` | suffix that `--revcomp` adds to the names of reversed reads |
 | `pair_adapters` | `false` | `--pair-adapters` |
 | `cut`, `cut2` | `0` | `-u`, `-U` (an integer or up to two in a vector) |
-| `quality_cutoff`, `quality_cutoff2` | `nothing` | `-q`, `-Q` (`20` or `(5, 20)`) |
+| `quality_cutoff`, `quality_cutoff2` | `nothing` | `-q`, `-Q` (`20` or `(5, 20)`; without `quality_cutoff2`, R2 uses `quality_cutoff`, as cutadapt) |
 | `quality_base` | `33` | `--quality-base` |
 | `min_length`, `max_length` | `nothing` | `-m`, `-M` (pairs: `(R1, R2)`, `nothing` for no limit) |
 | `max_n` | `nothing` | `--max-n` (count, or fraction below 1) |

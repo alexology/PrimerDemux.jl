@@ -446,7 +446,9 @@ function run_pipeline(input, output; demux::Bool, adapters = Adapter[], adapters
         end
         cfg = Config(paired, has_qual,
                      MateSteps(_cuts(cut), _quality(quality_cutoff), quality_base),
-                     MateSteps(_cuts(cut2), _quality(quality_cutoff2), quality_base),
+                     # as cutadapt -Q: without it, R2 uses the R1 cutoff
+                     MateSteps(_cuts(cut2), _quality(something(quality_cutoff2, Some(quality_cutoff))),
+                               quality_base),
                      isempty(adapters1) ? nothing : AdapterCutter(adapters1, times, action),
                      isempty(adapters2) ? nothing : AdapterCutter(adapters2, times, action),
                      pair_adapters, revcomp, collect(codeunits(String(rc_suffix))),
@@ -657,7 +659,8 @@ Adapters (see [`front_adapter`](@ref), [`back_adapter`](@ref),
 
 Other modifications, applied before the adapters: `cut`/`cut2` (`-u`/`-U`, an
 integer or a vector of up to two), `quality_cutoff`/`quality_cutoff2`
-(`-q`/`-Q`, `20` or `(front, back)`), `quality_base=33`.
+(`-q`/`-Q`, `20` or `(front, back)`; without `quality_cutoff2`, R2 uses
+`quality_cutoff`, as cutadapt), `quality_base=33`.
 
 Filters, applied after trimming in this order: `min_length` (`-m`), `max_length`
 (`-M`) — integers, or `(R1, R2)` tuples with `nothing` for no limit —,

@@ -445,12 +445,21 @@ function adapters_from_fasta(path::AbstractString; type::Symbol = :front, anchor
     type in (:front, :back) || throw(ArgumentError("type must be :front or :back"))
     defaults = search_defaults(; kwargs...)
     result = Adapter[]
-    open(FASTA.Reader, path) do reader
-        for record in reader
-            id = String(identifier(record))
-            seq = String(sequence(record))
-            spec = anchored ? (type == :front ? "^" * seq : seq * "\$") : seq
-            push!(result, make_adapter(spec, type, defaults, isempty(id) ? nothing : id))
+    open(path, "r") do raw
+        # gzip detected from the magic bytes, as for the reads
+        gzipped = read(raw, 2) == UInt8[0x1f, 0x8b]
+        seekstart(raw)
+        stream = gzipped ? GzipDecompressorStream(raw) : raw
+        reader = FASTA.Reader(stream)
+        try
+            for record in reader
+                id = String(identifier(record))
+                seq = String(sequence(record))
+                spec = anchored ? (type == :front ? "^" * seq : seq * "\$") : seq
+                push!(result, make_adapter(spec, type, defaults, isempty(id) ? nothing : id))
+            end
+        finally
+            close(reader)
         end
     end
     return result
